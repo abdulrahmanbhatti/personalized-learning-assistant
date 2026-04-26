@@ -2,599 +2,422 @@ import streamlit as st
 import random
 from datetime import datetime
 
-# Page configuration
+# Page config
 st.set_page_config(
-    page_title="AI Mentor - Personalized Learning Assistant",
+    page_title="AI Mentor",
     page_icon="🎓",
     layout="wide"
 )
 
+# Initialize session state
+if 'page' not in st.session_state:
+    st.session_state.page = 'login'
+if 'user' not in st.session_state:
+    st.session_state.user = ''
+if 'subject' not in st.session_state:
+    st.session_state.subject = ''
+if 'level' not in st.session_state:
+    st.session_state.level = 'Beginner'
+if 'diagnostic_done' not in st.session_state:
+    st.session_state.diagnostic_done = False
+if 'diagnostic_answers' not in st.session_state:
+    st.session_state.diagnostic_answers = {}
+if 'score' not in st.session_state:
+    st.session_state.score = 0
+if 'weaknesses' not in st.session_state:
+    st.session_state.weaknesses = []
+if 'strengths' not in st.session_state:
+    st.session_state.strengths = []
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = []
+if 'quiz_taken' not in st.session_state:
+    st.session_state.quiz_taken = False
+if 'quiz_score' not in st.session_state:
+    st.session_state.quiz_score = 0
+
 # Custom CSS
 st.markdown("""
 <style>
-    .stApp {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-    .main-header {
+    .main-title {
         text-align: center;
         padding: 2rem;
-        background: white;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         border-radius: 20px;
+        color: white;
         margin-bottom: 2rem;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
-    .section-card {
+    .card {
         background: white;
         padding: 1.5rem;
         border-radius: 15px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 1rem;
     }
-    .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1rem;
-        border-radius: 10px;
+    .success-badge {
+        background-color: #10b981;
         color: white;
-        text-align: center;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        display: inline-block;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-if 'user_name' not in st.session_state:
-    st.session_state.user_name = ""
-if 'subject' not in st.session_state:
-    st.session_state.subject = ""
-if 'level' not in st.session_state:
-    st.session_state.level = "Beginner"
-if 'diagnostic_answers' not in st.session_state:
-    st.session_state.diagnostic_answers = {}
-if 'evaluation' not in st.session_state:
-    st.session_state.evaluation = None
-if 'learning_path' not in st.session_state:
-    st.session_state.learning_path = None
-if 'completed_milestones' not in st.session_state:
-    st.session_state.completed_milestones = []
-if 'chat_history' not in st.session_state:
-    st.session_state.chat_history = []
-if 'quiz_questions' not in st.session_state:
-    st.session_state.quiz_questions = []
-if 'quiz_results' not in st.session_state:
-    st.session_state.quiz_results = None
-if 'quiz_history' not in st.session_state:
-    st.session_state.quiz_history = []
-if 'tutor_sessions' not in st.session_state:
-    st.session_state.tutor_sessions = 0
-if 'current_page' not in st.session_state:
-    st.session_state.current_page = "login"
-
-# ============================================
-# AI FUNCTIONS (No external APIs needed)
-# ============================================
-
-def generate_diagnostic_questions(subject, level):
-    questions = [
-        {
-            "id": 1,
-            "question": f"What is the most fundamental concept in {subject} that a {level} level learner should master?",
-            "hint": "Think about the core building blocks and foundations"
-        },
-        {
-            "id": 2,
-            "question": f"Describe a real-world project where you would use {subject}. Explain why it's suitable.",
-            "hint": "Connect theoretical concepts to practical applications"
-        },
-        {
-            "id": 3,
-            "question": f"What specific topics in {subject} do you find most challenging? Why?",
-            "hint": "Be honest about your difficulties - this helps personalize your learning"
-        },
-        {
-            "id": 4,
-            "question": f"Explain {subject} in simple terms to someone with no technical background.",
-            "hint": "Use analogies and simple language"
-        },
-        {
-            "id": 5,
-            "question": "What are your career goals and how does learning this subject help achieve them?",
-            "hint": "This helps us tailor the learning path to your aspirations"
-        }
-    ]
-    return questions
-
-def evaluate_diagnostic(subject, level, answers):
-    # Calculate score based on answer quality
-    total_score = 0
-    for answer in answers.values():
-        if answer:
-            length_score = min(len(answer) / 100, 1.0) * 20
-            total_score += length_score
-        else:
-            total_score += 5
-    
-    score = min(int((total_score / len(answers)) * 1.5) + 60, 95)
-    
-    strengths = [
-        "Fundamental concept understanding",
-        "Practical problem-solving approach",
-        "Logical thinking and reasoning",
-        "Willingness to learn new concepts",
-        "Ability to explain technical concepts"
-    ][:3]
-    
-    weaknesses = [
-        f"Advanced {subject} concepts",
-        "Code optimization and efficiency",
-        "Error handling and debugging",
-        f"Practical implementation of {subject}"
-    ][:3]
-    
-    recommendations = [
-        f"Practice daily coding exercises in {subject}",
-        f"Build a complete project using {subject}",
-        "Review fundamentals and strengthen basics",
-        "Take more quizzes to test knowledge"
-    ][:3]
-    
-    assessed_level = level
-    if score >= 85 and level == "Beginner":
-        assessed_level = "Intermediate"
-    elif score >= 85 and level == "Intermediate":
-        assessed_level = "Advanced"
-    elif score <= 65 and level == "Advanced":
-        assessed_level = "Intermediate"
-    elif score <= 65 and level == "Intermediate":
-        assessed_level = "Beginner"
-    
-    return {
-        "score": score,
-        "assessedLevel": assessed_level,
-        "summary": f"You have a {'strong' if score >= 80 else 'good'} understanding of {subject}.",
-        "strengths": strengths,
-        "weaknesses": weaknesses,
-        "recommendations": recommendations
-    }
-
-def generate_learning_path(subject, level, weaknesses):
-    milestones = [
-        {"id": 1, "title": f"{subject} Fundamentals", "description": f"Master the core concepts of {subject}", "difficulty": "Beginner", "hours": 10, "topics": ["Core Concepts", "Basic Syntax", "Foundations"]},
-        {"id": 2, "title": "Practical Applications", "description": "Apply concepts to real-world problems", "difficulty": "Intermediate", "hours": 12, "topics": ["Problem Solving", "Projects", "Case Studies"]},
-        {"id": 3, "title": "Advanced Topics", "description": "Deep dive into complex concepts", "difficulty": "Advanced", "hours": 15, "topics": ["Optimization", "Best Practices", "Advanced Patterns"]}
-    ]
-    
-    total_hours = sum(m["hours"] for m in milestones)
-    total_weeks = max(4, total_hours // 10)
-    
-    return {
-        "overview": f"Your personalized {level} level journey through {subject}.",
-        "totalWeeks": total_weeks,
-        "totalHours": total_hours,
-        "milestones": milestones
-    }
-
-def ai_tutor_response(user_question, subject, level):
-    question_lower = user_question.lower()
-    
-    if any(word in question_lower for word in ["explain", "what is", "define"]):
-        return f"""**Here's an explanation about {subject}:**
-
-In simple terms, {subject} is a fundamental area of computer science.
-
-**Key Points:**
-• Start with the basics - don't rush
-• Practice with small examples daily
-• Relate concepts to real-world scenarios
-
-Would you like me to provide more specific examples?"""
-
-    elif any(word in question_lower for word in ["example", "show"]):
-        return f"""**Practical Example for {subject}:**
-
-**Scenario:** Building a simple application to demonstrate concepts
-
-**Step-by-step implementation:**
-1. First, understand the requirements
-2. Break down the problem into smaller parts  
-3. Implement each part gradually
-4. Test and refine your solution
-
-**Next step:** Try modifying this code with different inputs!"""
-
-    elif any(word in question_lower for word in ["mistake", "error", "common"]):
-        return f"""**Common Mistakes to Avoid:**
-
-**❌ Don't do these:**
-• Rushing through fundamentals without practice
-• Skipping debugging and error handling
-• Only reading without hands-on coding
-
-**✅ Instead, try these strategies:**
-• Code for at least 30 minutes daily
-• Break complex problems into smaller steps
-• Learn from errors - they're learning opportunities"""
-
-    else:
-        return f"""**Great question about {user_question}!**
-
-**Core Concept:**
-This involves understanding how different components work together in {subject}.
-
-**Practical Tip:**
-Try breaking down this concept into smaller, manageable parts.
-
-**Remember:** Every expert was once a beginner. Keep asking questions!
-
-Would you like me to give you a practice exercise related to this topic?"""
-
-def generate_quiz(subject, weaknesses):
-    questions = [
-        {
-            "id": 1,
-            "question": f"What is the most important first step when learning {subject}?",
-            "options": ["Understanding core concepts", "Memorizing syntax", "Building projects", "Reading docs"],
-            "correct": "Understanding core concepts",
-            "explanation": "Understanding core concepts provides a foundation for everything else!"
-        },
-        {
-            "id": 2,
-            "question": f"Which practice is most effective for mastering {subject}?",
-            "options": ["Daily coding", "Only reading", "Watching videos", "Memorization"],
-            "correct": "Daily coding",
-            "explanation": "Active practice and building projects reinforce learning much better!"
-        },
-        {
-            "id": 3,
-            "question": "What is your main learning goal?",
-            "options": None,
-            "correct": None,
-            "explanation": "Having clear goals helps guide your learning journey!"
-        }
-    ]
-    return questions
-
-def grade_quiz(questions, answers):
-    correct = 0
-    results = []
-    
-    for i, q in enumerate(questions):
-        user_answer = answers.get(i, "")
-        is_correct = False
-        
-        if q.get('options'):
-            if user_answer == q.get('correct'):
-                is_correct = True
-                correct += 1
-        
-        results.append({
-            "question": q['question'],
-            "user_answer": user_answer,
-            "correct": is_correct,
-            "explanation": q.get('explanation', "Keep practicing!")
-        })
-    
-    percentage = (correct / len(questions)) * 100 if questions else 0
-    
-    return {
-        "score": correct,
-        "total": len(questions),
-        "percentage": percentage,
-        "results": results
-    }
-
 # ============================================
 # LOGIN PAGE
 # ============================================
-
-if st.session_state.current_page == "login":
-    col1, col2, col3 = st.columns([1,2,1])
+if st.session_state.page == 'login':
+    st.markdown('<div class="main-title">', unsafe_allow_html=True)
+    st.markdown("# 🎓 AI Mentor")
+    st.markdown("## Your Personalized Learning Assistant")
+    st.markdown('</div>', unsafe_allow_html=True)
     
-    with col2:
-        st.markdown('<div class="main-header">', unsafe_allow_html=True)
-        st.markdown("# 🎓 AI Mentor")
-        st.markdown("## Your Personalized Learning Assistant")
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.markdown("### Welcome! 👋")
-        
-        name = st.text_input("Enter your name to begin:", placeholder="Your name")
-        
-        if st.button("🚀 Start Learning Journey", use_container_width=True):
-            if name:
-                st.session_state.user_name = name
-                st.session_state.logged_in = True
-                st.session_state.current_page = "setup"
-                st.rerun()
-            else:
-                st.warning("Please enter your name to continue!")
-        
-        st.markdown("</div>", unsafe_allow_html=True)
+    with st.container():
+        col1, col2, col3 = st.columns([1,2,1])
+        with col2:
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            name = st.text_input("Enter your name:", placeholder="Your name")
+            if st.button("🚀 Start Learning", use_container_width=True):
+                if name:
+                    st.session_state.user = name
+                    st.session_state.page = 'setup'
+                    st.rerun()
+                else:
+                    st.error("Please enter your name!")
+            st.markdown('</div>', unsafe_allow_html=True)
 
 # ============================================
-# MAIN APP
+# SETUP PAGE
 # ============================================
-
-elif st.session_state.logged_in:
+elif st.session_state.page == 'setup':
+    st.markdown('<div class="main-title">', unsafe_allow_html=True)
+    st.markdown(f"# Welcome, {st.session_state.user}! 👋")
+    st.markdown('</div>', unsafe_allow_html=True)
     
-    # Sidebar
-    with st.sidebar:
-        st.markdown(f"### 👋 Welcome, {st.session_state.user_name}!")
-        st.markdown("---")
-        
-        # Navigation
-        st.markdown("### 📚 Navigation")
-        
-        if st.button("🎯 Learning Setup", use_container_width=True):
-            st.session_state.current_page = "setup"
-            st.rerun()
-        
-        if st.button("🧠 Diagnostic Test", use_container_width=True):
-            if st.session_state.subject:
-                st.session_state.current_page = "diagnostic"
-                st.rerun()
-            else:
-                st.error("Please complete learning setup first!")
-        
-        if st.button("🗺️ Learning Path", use_container_width=True):
-            if st.session_state.evaluation:
-                st.session_state.current_page = "path"
-                st.rerun()
-            else:
-                st.error("Please complete diagnostic test first!")
-        
-        if st.button("💬 AI Tutor", use_container_width=True):
-            if st.session_state.subject:
-                st.session_state.current_page = "tutor"
-                st.rerun()
-            else:
-                st.error("Please complete learning setup first!")
-        
-        if st.button("📝 Take Quiz", use_container_width=True):
-            if st.session_state.evaluation:
-                st.session_state.current_page = "quiz"
-                st.rerun()
-            else:
-                st.error("Please complete diagnostic test first!")
-        
-        st.markdown("---")
-        
-        # Progress metrics
-        if st.session_state.evaluation:
-            st.markdown("### 📊 Your Progress")
-            st.metric("Diagnostic Score", f"{st.session_state.evaluation['score']}%")
-            st.metric("Level", st.session_state.evaluation['assessedLevel'])
-            st.metric("Tutor Sessions", st.session_state.tutor_sessions)
-            st.metric("Quizzes Taken", len(st.session_state.quiz_history))
-        
-        if st.button("🚪 Logout", use_container_width=True):
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.rerun()
-    
-    # Page: Setup
-    if st.session_state.current_page == "setup":
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         st.markdown("## 🎯 Learning Setup")
         
         col1, col2 = st.columns(2)
-        
         with col1:
-            subject = st.selectbox(
-                "Select your subject",
-                ["Python Programming", "Data Structures & Algorithms", "Web Development",
-                 "Machine Learning", "Database Management", "Operating Systems"]
-            )
+            subject = st.selectbox("Select Subject", [
+                "Python Programming",
+                "Data Structures & Algorithms",
+                "Web Development",
+                "Machine Learning",
+                "Database Management"
+            ])
             st.session_state.subject = subject
         
         with col2:
-            level = st.selectbox(
-                "Your current skill level",
-                ["Beginner", "Intermediate", "Advanced"]
-            )
+            level = st.selectbox("Your Level", ["Beginner", "Intermediate", "Advanced"])
             st.session_state.level = level
         
-        st.text_area("Topics you're interested in (optional)", placeholder="e.g., data structures, algorithms, web development...")
-        st.text_input("Your learning goal (optional)", placeholder="e.g., Prepare for technical interviews, build projects...")
+        goal = st.text_input("Your Learning Goal (optional)", placeholder="e.g., Get a job, Build projects, Pass exam")
         
         if st.button("🔍 Start Diagnostic Test", use_container_width=True):
-            if st.session_state.subject:
-                st.session_state.current_page = "diagnostic"
-                st.rerun()
-            else:
-                st.error("Please select a subject!")
+            st.session_state.page = 'diagnostic'
+            st.rerun()
         
         st.markdown('</div>', unsafe_allow_html=True)
+
+# ============================================
+# DIAGNOSTIC PAGE
+# ============================================
+elif st.session_state.page == 'diagnostic':
+    st.markdown('<div class="main-title">', unsafe_allow_html=True)
+    st.markdown("## 🧠 Diagnostic Assessment")
+    st.markdown('</div>', unsafe_allow_html=True)
     
-    # Page: Diagnostic
-    elif st.session_state.current_page == "diagnostic":
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.markdown("## 🧠 Diagnostic Assessment")
-        st.info("Answer these questions honestly. This helps me understand your current knowledge level.")
-        
-        if "diagnostic_questions" not in st.session_state:
-            st.session_state.diagnostic_questions = generate_diagnostic_questions(
-                st.session_state.subject, st.session_state.level
-            )
-        
-        answers = {}
-        for q in st.session_state.diagnostic_questions:
-            st.markdown(f"**Q{q['id']}: {q['question']}**")
-            answer = st.text_area("Your answer:", key=f"diag_{q['id']}", 
-                                 placeholder=f"Hint: {q['hint']}")
-            answers[q['id']] = answer
+    st.info("Answer these questions honestly to help me understand your level.")
+    
+    questions = [
+        f"What is the most important concept in {st.session_state.subject}?",
+        f"Describe a real-world application of {st.session_state.subject}.",
+        f"What topics in {st.session_state.subject} do you find most challenging?",
+        f"How would you teach {st.session_state.subject} to a beginner?",
+        f"What's your goal for learning {st.session_state.subject}?"
+    ]
+    
+    answers = {}
+    for i, q in enumerate(questions, 1):
+        with st.container():
+            st.markdown(f"**Q{i}: {q}**")
+            answer = st.text_area("Your answer:", key=f"q{i}", height=100)
+            answers[i] = answer
             st.markdown("---")
-        
-        if st.button("📊 Submit & Evaluate", use_container_width=True):
-            with st.spinner("🤖 AI is analyzing your responses..."):
-                st.session_state.evaluation = evaluate_diagnostic(
-                    st.session_state.subject, st.session_state.level, answers
-                )
-                st.session_state.current_page = "results"
-                st.rerun()
-        
-        st.markdown('</div>', unsafe_allow_html=True)
     
-    # Page: Results
-    elif st.session_state.current_page == "results":
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.markdown("## 📊 Your Diagnostic Results")
+    if st.button("📊 Submit Answers", use_container_width=True):
+        # Calculate score based on answer length
+        total_score = 0
+        for ans in answers.values():
+            if ans:
+                score = min(len(ans) / 50, 1.0) * 20
+                total_score += score
+            else:
+                total_score += 5
         
-        eval_data = st.session_state.evaluation
+        st.session_state.score = int(min(total_score / len(questions) * 1.2 + 50, 95))
         
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Score", f"{eval_data['score']}%")
-        with col2:
-            st.metric("Assessed Level", eval_data['assessedLevel'])
-        with col3:
-            st.metric("Status", "Completed ✅")
-        
-        st.markdown(f"**Summary:** {eval_data['summary']}")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("**✅ Your Strengths**")
-            for s in eval_data['strengths']:
-                st.markdown(f"• {s}")
-        with col2:
-            st.markdown("**⚠️ Areas to Improve**")
-            for w in eval_data['weaknesses']:
-                st.markdown(f"• {w}")
-        
-        st.markdown("**🎯 Recommendations**")
-        for r in eval_data['recommendations']:
-            st.markdown(f"• {r}")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🗺️ Generate Learning Path", use_container_width=True):
-                with st.spinner("Creating your personalized learning path..."):
-                    st.session_state.learning_path = generate_learning_path(
-                        st.session_state.subject, st.session_state.level, eval_data['weaknesses']
-                    )
-                    st.session_state.current_page = "path"
-                    st.rerun()
-        with col2:
-            if st.button("💬 Chat with AI Tutor", use_container_width=True):
-                st.session_state.current_page = "tutor"
-                st.rerun()
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Page: Learning Path
-    elif st.session_state.current_page == "path":
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.markdown("## 🗺️ Your Personalized Learning Path")
-        
-        if st.session_state.learning_path:
-            path = st.session_state.learning_path
-            st.info(f"**Overview:** {path['overview']}\n\n**Duration:** {path['totalWeeks']} weeks ({path['totalHours']} hours)")
-            
-            for milestone in path['milestones']:
-                with st.expander(f"📌 Milestone {milestone['id']}: {milestone['title']}"):
-                    st.markdown(f"**Description:** {milestone['description']}")
-                    st.markdown(f"**Difficulty:** {milestone['difficulty']}")
-                    st.markdown(f"**Estimated Time:** {milestone['hours']} hours")
-            
-            if st.button("💬 Ask AI Tutor", use_container_width=True):
-                st.session_state.current_page = "tutor"
-                st.rerun()
-        else:
-            st.warning("Please generate your learning path first!")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Page: AI Tutor
-    elif st.session_state.current_page == "tutor":
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.markdown("## 💬 AI Tutor")
-        st.info("Ask me anything about your subject!")
-        
-        # Chat history
-        if st.session_state.chat_history:
-            for chat in st.session_state.chat_history:
-                if chat["role"] == "user":
-                    st.markdown(f"**You:** {chat['content']}")
-                else:
-                    st.markdown(f"**🤖 AI Tutor:** {chat['content']}")
-                st.markdown("---")
-        
-        # Suggested questions
-        st.markdown("### 💡 Suggested Questions")
-        cols = st.columns(3)
-        suggestions = [
-            f"Explain {st.session_state.subject} basics",
-            "Give me a practical example",
-            "What common mistakes should I avoid?"
+        # Generate strengths and weaknesses
+        all_strengths = [
+            "Understanding fundamentals",
+            "Practical thinking",
+            "Problem-solving",
+            "Learning attitude",
+            "Persistence"
         ]
         
-        for i, suggestion in enumerate(suggestions):
-            with cols[i]:
-                if st.button(suggestion, key=f"sugg_{i}", use_container_width=True):
-                    st.session_state.chat_history.append({"role": "user", "content": suggestion})
-                    response = ai_tutor_response(suggestion, st.session_state.subject, st.session_state.level)
-                    st.session_state.chat_history.append({"role": "assistant", "content": response})
-                    st.session_state.tutor_sessions += 1
-                    st.rerun()
+        all_weaknesses = [
+            f"Advanced {st.session_state.subject} concepts",
+            "Code optimization",
+            "Debugging skills",
+            "Time management",
+            "Project planning"
+        ]
         
-        # Chat input
-        user_question = st.text_input("Ask your question:", key="user_question")
+        random.seed(st.session_state.score)
+        st.session_state.strengths = random.sample(all_strengths, 3)
+        st.session_state.weaknesses = random.sample(all_weaknesses, 3)
         
-        if st.button("Send Message", use_container_width=True):
-            if user_question:
-                with st.spinner("🤖 AI is thinking..."):
-                    st.session_state.chat_history.append({"role": "user", "content": user_question})
-                    response = ai_tutor_response(user_question, st.session_state.subject, st.session_state.level)
-                    st.session_state.chat_history.append({"role": "assistant", "content": response})
-                    st.session_state.tutor_sessions += 1
-                    st.rerun()
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.session_state.diagnostic_done = True
+        st.session_state.page = 'results'
+        st.rerun()
+
+# ============================================
+# RESULTS PAGE
+# ============================================
+elif st.session_state.page == 'results':
+    st.markdown('<div class="main-title">', unsafe_allow_html=True)
+    st.markdown("## 📊 Your Diagnostic Results")
+    st.markdown('</div>', unsafe_allow_html=True)
     
-    # Page: Quiz
-    elif st.session_state.current_page == "quiz":
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.markdown("## 📝 Knowledge Quiz")
-        
-        if st.button("🔄 Generate New Quiz", use_container_width=True):
-            with st.spinner("Generating quiz..."):
-                st.session_state.quiz_questions = generate_quiz(
-                    st.session_state.subject, st.session_state.evaluation['weaknesses']
-                )
-                st.session_state.quiz_results = None
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Score", f"{st.session_state.score}%")
+    with col2:
+        level_text = "Intermediate" if st.session_state.score > 70 else "Beginner" if st.session_state.score < 50 else "Advanced"
+        st.metric("Assessed Level", level_text)
+    with col3:
+        st.metric("Status", "Completed ✅")
+    
+    st.markdown("---")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("### ✅ Your Strengths")
+        for s in st.session_state.strengths:
+            st.markdown(f"• {s}")
+    
+    with col2:
+        st.markdown("### ⚠️ Areas to Improve")
+        for w in st.session_state.weaknesses:
+            st.markdown(f"• {w}")
+    
+    st.markdown("---")
+    st.markdown("### 🎯 Recommendations")
+    st.markdown(f"• Practice {st.session_state.weaknesses[0]} daily")
+    st.markdown(f"• Build a project using {st.session_state.subject}")
+    st.markdown("• Take weekly quizzes to track progress")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🗺️ View Learning Path", use_container_width=True):
+            st.session_state.page = 'path'
+            st.rerun()
+    with col2:
+        if st.button("💬 Chat with AI Tutor", use_container_width=True):
+            st.session_state.page = 'tutor'
+            st.rerun()
+
+# ============================================
+# LEARNING PATH PAGE
+# ============================================
+elif st.session_state.page == 'path':
+    st.markdown('<div class="main-title">', unsafe_allow_html=True)
+    st.markdown("## 🗺️ Your Learning Path")
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    milestones = [
+        {"week": 1, "title": f"{st.session_state.subject} Fundamentals", "hours": 10},
+        {"week": 2, "title": "Core Concepts & Practice", "hours": 12},
+        {"week": 3, "title": "Advanced Topics", "hours": 15},
+        {"week": 4, "title": "Project Building", "hours": 20},
+        {"week": 5, "title": "Review & Polish", "hours": 10},
+        {"week": 6, "title": "Final Assessment", "hours": 8}
+    ]
+    
+    st.info(f"📌 Based on your {st.session_state.level} level, here's your personalized 6-week plan")
+    
+    for m in milestones:
+        with st.expander(f"Week {m['week']}: {m['title']}"):
+            st.markdown(f"**Estimated time:** {m['hours']} hours")
+            st.markdown(f"**Focus area:** {st.session_state.weaknesses[0] if m['week'] > 2 else 'Building strong foundation'}")
+            if st.button(f"Mark Week {m['week']} Complete", key=f"week_{m['week']}"):
+                st.success(f"Great progress! Week {m['week']} completed! 🎉")
+    
+    if st.button("💬 Continue to AI Tutor", use_container_width=True):
+        st.session_state.page = 'tutor'
+        st.rerun()
+
+# ============================================
+# AI TUTOR PAGE
+# ============================================
+elif st.session_state.page == 'tutor':
+    st.markdown('<div class="main-title">', unsafe_allow_html=True)
+    st.markdown("## 💬 AI Tutor")
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Chat display
+    for chat in st.session_state.chat_history:
+        if chat['role'] == 'user':
+            st.markdown(f"**You:** {chat['content']}")
+        else:
+            st.markdown(f"**🤖 AI Tutor:** {chat['content']}")
+        st.markdown("---")
+    
+    # Suggested questions
+    st.markdown("### 💡 Suggested Questions")
+    cols = st.columns(3)
+    suggestions = [
+        f"Explain {st.session_state.subject} basics",
+        f"How to learn {st.session_state.subject} faster?",
+        f"Common mistakes in {st.session_state.weaknesses[0]}"
+    ]
+    
+    for i, suggestion in enumerate(suggestions):
+        with cols[i]:
+            if st.button(suggestion, key=f"sugg_{i}", use_container_width=True):
+                st.session_state.chat_history.append({'role': 'user', 'content': suggestion})
+                
+                # Generate response
+                response = f"""Thanks for asking about "{suggestion}"!
+
+Here's what you should know about {st.session_state.subject}:
+
+**Key Point:** This is an important concept for {st.session_state.level} level learners.
+
+**Practical Tip:** Practice daily for 30 minutes to see improvement.
+
+**Next Step:** Would you like me to provide an example?
+
+Keep up the great work! 🚀"""
+                
+                st.session_state.chat_history.append({'role': 'assistant', 'content': response})
                 st.rerun()
-        
-        if st.session_state.quiz_questions and not st.session_state.quiz_results:
-            answers = {}
-            for i, q in enumerate(st.session_state.quiz_questions):
-                st.markdown(f"**Q{i+1}: {q['question']}**")
-                if q.get('options'):
-                    answer = st.radio("Select your answer:", q['options'], key=f"quiz_{i}")
-                    answers[i] = answer
-                else:
-                    answer = st.text_area("Your answer:", key=f"quiz_{i}")
-                    answers[i] = answer
-                st.markdown("---")
+    
+    # Chat input
+    user_input = st.text_input("Ask your question:", placeholder="Type your question here...")
+    
+    if st.button("Send", use_container_width=True):
+        if user_input:
+            st.session_state.chat_history.append({'role': 'user', 'content': user_input})
             
-            if st.button("✅ Submit Quiz", use_container_width=True):
-                with st.spinner("Grading your quiz..."):
-                    results = grade_quiz(st.session_state.quiz_questions, answers)
-                    st.session_state.quiz_results = results
-                    st.session_state.quiz_history.append({
-                        'date': datetime.now().strftime("%Y-%m-%d"),
-                        'percentage': results['percentage']
-                    })
-                    st.rerun()
-        
-        elif st.session_state.quiz_results:
-            results = st.session_state.quiz_results
-            if results['percentage'] >= 60:
-                st.success(f"🎉 You scored {results['percentage']:.0f}% - Great job!")
-            else:
-                st.warning(f"💪 You scored {results['percentage']:.0f}% - Keep practicing!")
+            response = f"""Great question about "{user_input}"!
+
+Here's my response for a {st.session_state.level} level learner:
+
+**Core Concept:** This relates to fundamental principles of {st.session_state.subject}.
+
+**Learning Tip:** Try breaking it down into smaller parts and practice each part separately.
+
+**Remember:** Every expert was once a beginner. Keep asking questions!
+
+Would you like me to explain further with an example?"""
             
-            st.markdown(f"**Score:** {results['score']}/{results['total']}")
+            st.session_state.chat_history.append({'role': 'assistant', 'content': response})
+            st.rerun()
+    
+    if st.button("🗑 Clear Chat", use_container_width=True):
+        st.session_state.chat_history = []
+        st.rerun()
+    
+    if st.button("📝 Take a Quiz", use_container_width=True):
+        st.session_state.page = 'quiz'
+        st.rerun()
+
+# ============================================
+# QUIZ PAGE
+# ============================================
+elif st.session_state.page == 'quiz':
+    st.markdown('<div class="main-title">', unsafe_allow_html=True)
+    st.markdown("## 📝 Knowledge Quiz")
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    if not st.session_state.quiz_taken:
+        questions = [
+            {
+                "q": f"What is the first step in learning {st.session_state.subject}?",
+                "options": ["Understanding basics", "Memorizing everything", "Building complex projects", "Reading documentation"]
+            },
+            {
+                "q": f"Which is most important for mastering {st.session_state.subject}?",
+                "options": ["Daily practice", "Only theory", "Watching videos", "Reading books"]
+            },
+            {
+                "q": f"How can you improve in {st.session_state.weaknesses[0] if st.session_state.weaknesses else st.session_state.subject}?",
+                "options": ["Practice regularly", "Ignore it", "Only study theory", "Memorize examples"]
+            }
+        ]
         
-        st.markdown('</div>', unsafe_allow_html=True)
+        answers = {}
+        for i, q in enumerate(questions):
+            st.markdown(f"**Q{i+1}: {q['q']}**")
+            answer = st.radio("Select answer:", q['options'], key=f"quiz_{i}", index=None)
+            answers[i] = answer
+            st.markdown("---")
+        
+        if st.button("✅ Submit Quiz", use_container_width=True):
+            correct = 0
+            # Check answers (first option is correct for all)
+            for i, ans in answers.items():
+                if ans and ans.startswith(questions[i]['options'][0][:10]):
+                    correct += 1
+            
+            st.session_state.quiz_score = (correct / len(questions)) * 100
+            st.session_state.quiz_taken = True
+            st.rerun()
+    
+    else:
+        # Show results
+        if st.session_state.quiz_score >= 70:
+            st.success(f"🎉 Great job! You scored {st.session_state.quiz_score:.0f}%!")
+        else:
+            st.warning(f"💪 You scored {st.session_state.quiz_score:.0f}%. Keep practicing!")
+        
+        st.markdown("### 📊 Quiz Results")
+        st.progress(st.session_state.quiz_score / 100)
+        
+        if st.button("🔄 Take Another Quiz", use_container_width=True):
+            st.session_state.quiz_taken = False
+            st.rerun()
+        
+        if st.button("🏠 Back to Dashboard", use_container_width=True):
+            st.session_state.page = 'results'
+            st.rerun()
+
+# ============================================
+# SIDEBAR PROGRESS
+# ============================================
+with st.sidebar:
+    st.markdown(f"### 👤 {st.session_state.user}")
+    st.markdown("---")
+    
+    if st.session_state.diagnostic_done:
+        st.markdown("### 📊 Progress")
+        st.metric("Diagnostic Score", f"{st.session_state.score}%")
+        st.metric("Level", st.session_state.level)
+        
+        if st.session_state.quiz_taken:
+            st.metric("Quiz Score", f"{st.session_state.quiz_score:.0f}%")
+        
+        st.markdown("---")
+        st.markdown("### 🎯 Focus Areas")
+        for w in st.session_state.weaknesses[:2]:
+            st.markdown(f"• {w}")
+    
+    st.markdown("---")
+    if st.button("🚪 Logout", use_container_width=True):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
